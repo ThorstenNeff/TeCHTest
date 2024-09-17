@@ -1,6 +1,6 @@
 [submodule "thirdparties/MODNet"]
 	path = thirdparties/MODNet
-	url = git@github.com:ZHKKKe/MODNet.git
+	url = https://github.com/ZHKKKe/MODNet.git
 	ignore = dirty
 [submodule "thirdparties/nvdiffrast"]
 	path = thirdparties/nvdiffrast

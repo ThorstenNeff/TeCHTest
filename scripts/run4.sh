@@ -9,5 +9,7 @@ export PYOPENGL_PLATFORM=osmesa
 export MESA_GL_VERSION_OVERRIDE=4.1
 export PYTHONPATH=$PYTHONPATH:$(pwd);
 
-# Step 1: Preprocess image, get SMPL-X & normal estimation
-python utils/body_utils/preprocess.py --in_path ${INPUT_FILE} --out_dir ${EXP_DIR}
+
+# Step 4: Run geometry stage (Run on a single GPU)
+python core/main.py --config configs/tech_geometry.yaml --exp_dir $EXP_DIR --sub_name $SUBJECT_NAME
+python utils/body_utils/postprocess.py --dir $EXP_DIR/obj --name $SUBJECT_NAME

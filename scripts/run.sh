@@ -1,6 +1,7 @@
 set -x
 export INPUT_FILE=$1;
 export EXP_DIR=$2;
+export GENDER=$3;
 export SUBJECT_NAME=$(basename $1 | cut -d"." -f1);
 export REPLICATE_API_TOKEN=""; # your replicate token for BLIP API
 export CUDA_HOME=/usr/local/cuda-11.6/ #/your/cuda/home/dir;

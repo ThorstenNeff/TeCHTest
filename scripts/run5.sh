@@ -9,5 +9,5 @@ export PYOPENGL_PLATFORM=osmesa
 export MESA_GL_VERSION_OVERRIDE=4.1
 export PYTHONPATH=$PYTHONPATH:$(pwd);
 
-# Step 1: Preprocess image, get SMPL-X & normal estimation
-python utils/body_utils/preprocess.py --in_path ${INPUT_FILE} --out_dir ${EXP_DIR}
+# Step 5: Run texture stage (Run on a single GPU)
+python core/main.py --config configs/tech_texture.yaml --exp_dir $EXP_DIR --sub_name $SUBJECT_NAME

@@ -18,3 +18,4 @@ input_data/demo/*
 .vscode
 keys
 *.ipynb
+local.sh

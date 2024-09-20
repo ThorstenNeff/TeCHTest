@@ -24,7 +24,7 @@ pyfqmr
 PyMCubes
 pymeshfix
 pymeshlab
-PyOpenGL
+PyOpenGL==3.1.5
 pyrender
 pyrr
 pytorch-lightning==1.9.0

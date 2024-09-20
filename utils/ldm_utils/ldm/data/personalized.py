@@ -220,8 +220,10 @@ class PersonalizedBase(Dataset):
 
         if not self.reg:
             text = random.choice(training_templates_smallest).format(placeholder_string)
+            print(f"NOT SELF.REG {text}")
         else:
             text = random.choice(reg_templates_smallest).format(placeholder_string)
+            print(f"SELF.REG {text}")
             
         example["caption"] = text
 

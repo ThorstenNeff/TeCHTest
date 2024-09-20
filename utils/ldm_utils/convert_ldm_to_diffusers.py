@@ -756,6 +756,23 @@ def convert_paint_by_example_checkpoint(checkpoint):
     model.uncond_vector.data = torch.nn.Parameter(checkpoint["learnable_vector"])
     return model
 
+# Map old keys to new ones
+def remap_keys(state_dict):
+    new_state_dict = {}
+    for key, value in state_dict.items():
+        if 'query' in key:
+            new_key = key.replace('query', 'to_q')
+        elif 'key' in key:
+            new_key = key.replace('key', 'to_k')
+        elif 'value' in key:
+            new_key = key.replace('value', 'to_v')
+        elif 'proj_attn' in key:
+            new_key = key.replace('proj_attn', 'to_out.0')
+        else:
+            new_key = key  # No change for keys that don’t match
+        
+        new_state_dict[new_key] = value
+    return new_state_dict
 
 def convert_open_clip_checkpoint(checkpoint):
     text_config = CLIPTextConfig(
@@ -1004,6 +1021,9 @@ if __name__ == "__main__":
     # Convert the VAE model.
     vae_config = create_vae_diffusers_config(original_config, image_size=image_size)
     converted_vae_checkpoint = convert_ldm_vae_checkpoint(checkpoint, vae_config)
+
+    # Fix eunknown keys error
+    converted_vae_checkpoint = remap_keys(converted_vae_checkpoint)
 
     vae = AutoencoderKL(**vae_config)
     vae.load_state_dict(converted_vae_checkpoint)

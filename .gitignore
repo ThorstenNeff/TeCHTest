@@ -16,3 +16,4 @@ clip_ckpts
 input_data/demo/*
 .DS_Store
 .vscode
+keys

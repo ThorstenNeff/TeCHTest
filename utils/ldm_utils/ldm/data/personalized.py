@@ -134,8 +134,20 @@ per_img_token_list = [
 ]
 
 def loadMyImage(imgfile):
-    img = cv2.imread(imgfile, cv2.IMREAD_GRAYSCALE)
+    # Load the image with 4 channels (RGBA)
+    img = cv2.imread(imgfile, cv2.IMREAD_UNCHANGED)  # Keeps original channels (RGBA if present)
+    
+    # If the image does not have 4 channels, convert it to RGBA
+    if img is None:
+        raise ValueError(f"Failed to load image: {imgfile}")
+    if img.shape[-1] == 3:
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2BGRA)
+    elif len(img.shape) == 2:  # grayscale image, convert to RGBA
+        img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGRA)
+    
+    # Convert to PIL image
     img = Image.fromarray(img)
+    
     return img
 
 class PersonalizedBase(Dataset):
@@ -169,6 +181,7 @@ class PersonalizedBase(Dataset):
             for image in input_images:
                 for bg in bg_images:
                     img_np = np.array(image)
+                    print("Number of channels img_np.shape[-1] :", img_np.shape[-1])
                     assert img_np.shape[-1] == 4, "image shape {}".format(img_np.shape)
                     bg = np.array(bg.resize(image.size))
                     img_np[..., :3] = ((img_np[..., :3] * (img_np[..., 3:]/255)) + bg * (1. - img_np[..., 3:]/255)).astype(np.uint8)

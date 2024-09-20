@@ -16,3 +16,8 @@ clip_ckpts
 input_data/demo/*
 .DS_Store
 .vscode
+
+TECHConda.ipynb
+bliptest.ipynb
+keys/
+local.sh

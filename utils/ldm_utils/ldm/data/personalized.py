@@ -4,7 +4,7 @@ import PIL
 from PIL import Image
 from torch.utils.data import Dataset
 from torchvision import transforms
-
+import cv2
 import random
 
 training_templates_smallest = [
@@ -133,7 +133,13 @@ per_img_token_list = [
     'א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ז', 'ח', 'ט', 'י', 'כ', 'ל', 'מ', 'נ', 'ס', 'ע', 'פ', 'צ', 'ק', 'ר', 'ש', 'ת',
 ]
 
+def loadMyImage(imgfile):
+    img = cv2.imread(imgfile, cv2.IMREAD_GRAYSCALE)
+    img = Image.fromarray(img)
+    return img
+
 class PersonalizedBase(Dataset):
+
     def __init__(self,
                  data_root=None,
                  image_paths=None,
@@ -156,9 +162,9 @@ class PersonalizedBase(Dataset):
         else:
             assert image_paths is not None
             self.image_paths = image_paths
-        input_images = [PIL.Image.open(f) for f in self.image_paths]
+        input_images = [loadMyImage(f) for f in self.image_paths]
         if bg_root is not None:
-            bg_images = [PIL.Image.open(os.path.join(bg_root, f)).convert('RGB') for f in os.listdir(bg_root)]
+            bg_images = [loadMyImage(os.path.join(bg_root, f)).convert('RGB') for f in os.listdir(bg_root)]
             self.train_images = []
             for image in input_images:
                 for bg in bg_images:

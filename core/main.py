@@ -1,6 +1,7 @@
 #import nvdiffrast.torch as dr
 import torch
 import argparse
+import torch._dynamo
 
 from lib.provider import ViewDataset
 from lib.trainer import *
@@ -76,10 +77,14 @@ if __name__ == '__main__':
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
+
+    torch._dynamo.config.suppress_errors = True 
+
     if cfg.test.test:
         guidance = None  # no need to load guidance model at test
         trainer = Trainer(
-            'df', cfg, model, guidance, device=device, workspace=cfg.workspace, fp16=cfg.fp16, use_checkpoint=cfg.train.ckpt, pretrained=cfg.train.pretrained)
+            'df', cfg, model, guidance, device=device, workspace=cfg.workspace, fp16=cfg.fp16, use_checkpoint=cfg.train.ckpt, pretrained=cfg.train.pretrained
+        )
 
         if not cfg.test.not_test_video:
             test_loader = ViewDataset(cfg, device=device, type='test', H=cfg.test.H, W=cfg.test.W, size=100, render_head=True).dataloader()

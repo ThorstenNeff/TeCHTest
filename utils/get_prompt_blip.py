@@ -83,7 +83,11 @@ def get_prompt_segments(img_path, feature_extractor, model):
     pose = ask('Describe the pose of this person.')
     prompt = prompt + ', {}'.format(pose)
     prompt = clean_prompt(prompt)
-    return prompt, gender
+    if not opt.custom_prompt:
+        return prompt, gender
+    print("USE CUSTOM PROMPT ",opt.custom_prompt)
+    return opt.custom_prompt
+    
 
 
 def get_garments(img_path, feature_extractor, model):
@@ -114,6 +118,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--img-path', type=str, required=True, help="input image")
     parser.add_argument('--out-path', type=str, required=True, help="output path")
+    parser.add_argument('--custom-prompt', type=str, required=False, help="custom prompt")
     opt = parser.parse_args()
     print(f'[INFO] Generating text prompt for {opt.img_path}...')
     model = SegformerForSemanticSegmentation.from_pretrained("matei-dorian/segformer-b5-finetuned-human-parsing").cuda()

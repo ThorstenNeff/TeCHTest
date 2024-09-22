@@ -201,9 +201,11 @@ if __name__ == "__main__":
         in_tensor["smpl_faces"] = in_tensor["smpl_faces"][:, :, [0, 2, 1]]
 
         if not args.novis:
-            per_data_lst[-1].save(
+            torchvision.utils.save_image(
+                per_data_lst[-1],  # this is your tensor
                 osp.join(args.out_dir, f"vis/{data['name']}_smpl.png")
             )
+
 
         if not args.novis:
             img_crop_path = osp.join(args.out_dir, "png", f"{data['name']}_crop.png")

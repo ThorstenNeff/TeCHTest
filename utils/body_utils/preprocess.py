@@ -33,9 +33,7 @@ from lib.Normal import Normal
 from lib.IFGeo import IFGeo
 from pytorch3d.ops import SubdivideMeshes
 from lib.common.config import cfg
-from lib.common.render import query_color
 from lib.common.train_util import init_loss, Format
-from lib.common.imutils import blend_rgb_norm
 from lib.dataset.TestDataset import TestDataset
 from lib.common.local_affine import register
 from lib.net.geometry import rot6d_to_rotmat, rotation_matrix_to_angle_axis
@@ -79,18 +77,6 @@ if __name__ == "__main__":
     cfg.merge_from_list(cfg_show_list)
     cfg.freeze()
 
-    # load normal model
-    # normal_net = Normal.load_from_checkpoint(
-    #    cfg=cfg, checkpoint_path=cfg.normal_path, map_location=device, strict=False
-    #)
-    #normal_net = normal_net.to(device)
-    #normal_net.netG.eval()
-    #print(
-    #    colored(
-    #        f"Resume Normal Estimator from {Format.start} {cfg.normal_path} {Format.end}", "green"
-    #    )
-    #)
-
     # SMPLX object
     SMPLX_object = SMPLX()
 
@@ -98,7 +84,7 @@ if __name__ == "__main__":
         "image_dir": args.in_dir,
         "image_path": args.in_path,
         "seg_dir": args.seg_dir,
-        "use_seg": False,    # w/ or w/o segmentation
+        "use_seg": False,    # No segmentation
         "hps_type": cfg.bni.hps_type,    # pymafx/pixie
         "vol_res": cfg.vol_res,
         "single": args.multi,
@@ -118,29 +104,20 @@ if __name__ == "__main__":
 
         # final results rendered as image (PNG)
         # 1. Render the final fitted SMPL (xxx_smpl.png)
-        # 2. Render the final reconstructed clothed human (xxx_cloth.png)
-        # 3. Blend the original image with predicted cloth normal (xxx_overlap.png)
-        # 4. Blend the cropped image with predicted cloth normal (xxx_crop.png)
+        # Removed all references to cloth normals.
 
         os.makedirs(osp.join(args.out_dir, "png"), exist_ok=True)
-        os.makedirs(osp.join(args.out_dir, "normal"), exist_ok=True)
         os.makedirs(osp.join(args.out_dir, "vis"), exist_ok=True)
 
         # final reconstruction meshes (OBJ)
         # 1. SMPL mesh (xxx_smpl_xx.obj)
         # 2. SMPL params (xxx_smpl.npy)
-        # 3. d-BiNI surfaces (xxx_BNI.obj)
-        # 4. seperate face/hand mesh (xxx_hand/face.obj)
-        # 5. full shape impainted by IF-Nets+ after remeshing (xxx_IF.obj)
-        # 6. sideded or occluded parts (xxx_side.obj)
-        # 7. final reconstructed clothed human (xxx_full.obj)
 
         os.makedirs(osp.join(args.out_dir, "obj"), exist_ok=True)
 
         in_tensor = {
             "smpl_faces": data["smpl_faces"],
             "image": data["img_icon"].to(device),
-            "mask": data["img_mask"].to(device)
         }
 
         # The optimizer and variables
@@ -161,21 +138,10 @@ if __name__ == "__main__":
             patience=args.patience,
         )
 
-        # [result_loop_1, result_loop_2, ...]
-        per_data_lst = []
-
-        N_body, N_pose = optimed_pose.shape[:2]
-        if not args.multi:
-            smpl_path = f"{args.out_dir}/obj/{data['name']}_smpl_00.obj"
-        else:
-            smpl_path = f"{args.out_dir}/obj/{data['name']}_smpl_00.obj"
-
         # smpl optimization
         loop_smpl = tqdm(range(args.loop_smpl))
 
         for i in loop_smpl:
-
-            per_loop_lst = []
 
             optimizer_smpl.zero_grad()
 
@@ -196,134 +162,36 @@ if __name__ == "__main__":
                 left_hand_pose=tensor2variable(data["left_hand_pose"], device),
                 right_hand_pose=tensor2variable(data["right_hand_pose"], device),
             )
+
             def transform_points(points):
                 return (points + optimed_trans) * data['scale'] * torch.tensor([1.0, -1.0, -1.0]).to(points.device)
             smpl_verts_save = transform_points(smpl_verts)
             smpl_landmarks_save = transform_points(smpl_landmarks)
             smpl_joints_save = transform_points(smpl_joints)
-            # print(smpl_verts_save.shape, smpl_landmarks_save.shape, smpl_joints_save.shape)
 
             smpl_verts = (smpl_verts + optimed_trans) * data["scale"]
             smpl_joints = (smpl_joints + optimed_trans) * data["scale"] * torch.tensor(
                 [1.0, 1.0, -1.0]
             ).to(device)
 
-
-            # landmark errors
-            smpl_joints_3d = (
-                smpl_joints[:, dataset.smpl_data.smpl_joint_ids_45_pixie, :] + 1.0
-            ) * 0.5
-            in_tensor["smpl_joint"] = smpl_joints[:,
-                                                    dataset.smpl_data.smpl_joint_ids_24_pixie, :]
-
+            # Joint landmark error loss only
             ghum_lmks = data["landmark"][:, SMPLX_object.ghum_smpl_pairs[:, 0], :2].to(device)
             ghum_conf = data["landmark"][:, SMPLX_object.ghum_smpl_pairs[:, 0], -1].to(device)
-            smpl_lmks = smpl_joints_3d[:, SMPLX_object.ghum_smpl_pairs[:, 1], :2]
+            smpl_lmks = smpl_joints[:, SMPLX_object.ghum_smpl_pairs[:, 1], :2]
 
-            # render optimized mesh as normal [-1,1]
-            in_tensor["T_normal_F"], in_tensor["T_normal_B"] = dataset.render_normal(
-                smpl_verts * torch.tensor([1.0, -1.0, -1.0]).to(device),
-                in_tensor["smpl_faces"],
-            )
-
-            T_mask_F, T_mask_B = dataset.render.get_image(type="mask")
-            for k in in_tensor:
-                print(k, in_tensor[k].shape)
-            #with torch.no_grad():
-            #    in_tensor["normal_F"], in_tensor["normal_B"] = normal_net.netG(in_tensor)
-
-            #diff_F_smpl = torch.abs(in_tensor["T_normal_F"] - in_tensor["normal_F"])
-            #diff_B_smpl = torch.abs(in_tensor["T_normal_B"] - in_tensor["normal_B"])
-
-            # silhouette loss
-            smpl_arr = torch.cat([T_mask_F, T_mask_B], dim=-1)
-            gt_arr = in_tensor["mask"].repeat(1, 1, 2)
-            diff_S = torch.abs(smpl_arr - gt_arr)
-            losses["silhouette"]["value"] = diff_S.mean()
-
-            # large cloth_overlap --> big difference between body and cloth mask
-            # for loose clothing, reply more on landmarks instead of silhouette+normal loss
-            #cloth_overlap = diff_S.sum(dim=[1, 2]) / gt_arr.sum(dim=[1, 2])
-            #cloth_overlap_flag = cloth_overlap > cfg.cloth_overlap_thres
-            #losses["joint"]["weight"] = [50.0 if flag else 5.0 for flag in cloth_overlap_flag]
-
-            # small body_overlap --> large occlusion or out-of-frame
-            # for highly occluded body, reply only on high-confidence landmarks, no silhouette+normal loss
-
-            # BUG: PyTorch3D silhouette renderer generates dilated mask
-            bg_value = in_tensor["T_normal_F"][0, 0, 0, 0]
-            smpl_arr_fake = torch.cat(
-                [
-                    in_tensor["T_normal_F"][:, 0].ne(bg_value).float(),
-                    in_tensor["T_normal_B"][:, 0].ne(bg_value).float()
-                ],      
-                dim=-1
-            )
-
-            body_overlap = (gt_arr * smpl_arr_fake.gt(0.0)
-                            ).sum(dim=[1, 2]) / smpl_arr_fake.gt(0.0).sum(dim=[1, 2])
-            body_overlap_mask = (gt_arr * smpl_arr_fake).unsqueeze(1)
-            body_overlap_flag = body_overlap < cfg.body_overlap_thres
-
-            #losses["normal"]["value"] = (
-            #    diff_F_smpl * body_overlap_mask[..., :512] +
-            #    diff_B_smpl * body_overlap_mask[..., 512:]
-            #).mean() / 2.0
-
-            losses["silhouette"]["weight"] = [0 if flag else 1.0 for flag in body_overlap_flag]
-            occluded_idx = torch.where(body_overlap_flag)[0]
-            ghum_conf[occluded_idx] *= ghum_conf[occluded_idx] > 0.95
             losses["joint"]["value"] = (torch.norm(ghum_lmks - smpl_lmks, dim=2) *
                                         ghum_conf).mean(dim=1)
-            
-            if args.openpose and i > args.loop_smpl / 10:
-                openpose_lmks = data["openpose_keypoints"][:68, :2].to(device)
-                openpose_conf = data["openpose_keypoints"][:68, 2].to(device)
-                smpl_openpose_lmks = (get_openpose_face_landmarks(smpl_joints[0, :, :2]) + 1.0) * 0.5
-                ind = openpose_conf.max(dim=0)[1]
-                print(smpl_openpose_lmks[ind], openpose_lmks[ind])
-                # print(smpl_openpose_lmks.min(dim=0), smpl_openpose_lmks.max(dim=0))
-                # print(openpose_lmks.min(dim=0), openpose_lmks.max(dim=0))
-                losses["joint"]["value"] = losses["joint"]["value"] + (torch.norm(openpose_lmks - smpl_openpose_lmks, dim=1) *
-                                        openpose_conf).mean(dim=0).unsqueeze(0) * 100
 
             # Weighted sum of the losses
-            smpl_loss = 0.0
-            pbar_desc = "Body Fitting -- "
-            for k in ["normal", "silhouette", "joint"]:
-                per_loop_loss = (
-                    losses[k]["value"] * torch.tensor(losses[k]["weight"]).to(device)
-                ).mean()
-                pbar_desc += f"{k}: {per_loop_loss:.3f} | "
-                smpl_loss += per_loop_loss
-            pbar_desc += f"Total: {smpl_loss:.3f}"
-            loose_str = ''.join([str(j) for j in cloth_overlap_flag.int().tolist()])
-            occlude_str = ''.join([str(j) for j in body_overlap_flag.int().tolist()])
-            pbar_desc += colored(f"| loose:{loose_str}, occluded:{occlude_str}", "yellow")
-            loop_smpl.set_description(pbar_desc)
+            smpl_loss = losses["joint"]["value"].mean()
+
+            loop_smpl.set_description(f"Joint Loss: {smpl_loss:.3f}")
 
             # save intermediate results
             if (i == args.loop_smpl - 1) and (not args.novis):
-
-                per_loop_lst.extend(
-                    [
-                        in_tensor["image"],
-                        in_tensor["T_normal_F"],
-                        in_tensor["normal_F"],
-                        diff_S[:, :, :512].unsqueeze(1).repeat(1, 3, 1, 1),
-                    ]
-                )
-                per_loop_lst.extend(
-                    [
-                        in_tensor["image"],
-                        in_tensor["T_normal_B"],
-                        in_tensor["normal_B"],
-                        diff_S[:, :, 512:].unsqueeze(1).repeat(1, 3, 1, 1),
-                    ]
-                )
-                per_data_lst.append(
-                    get_optim_grid_image(per_loop_lst, None, nrow=N_body * 2, type="smpl")
-                )
+                per_data_lst = [
+                    in_tensor["image"],
+                ]
 
             smpl_loss.backward()
             optimizer_smpl.step()
@@ -343,50 +211,6 @@ if __name__ == "__main__":
                 data["img_crop"],
                 img_crop_path
             )
-            img_normal_F_path = osp.join(args.out_dir, "normal", f"{data['name']}_normal_front.png")
-            img_normal_B_path = osp.join(args.out_dir, "normal", f"{data['name']}_normal_back.png")
-            normal_F = in_tensor['normal_F'].detach().cpu()
-            normal_F_mask = (normal_F.abs().sum(1) > 1e-6).to(normal_F)
-            normal_B = in_tensor['normal_B'].detach().cpu()
-            normal_B_mask = (normal_B.abs().sum(1) > 1e-6).to(normal_B)
-            torchvision.utils.save_image(
-                torch.cat(
-                    [
-                        (normal_F + 1.0) * 0.5,
-                        normal_F_mask.unsqueeze(1)
-                    ],
-                    dim=1
-                ), img_normal_F_path
-            )
-
-            torchvision.utils.save_image(
-                torch.cat(
-                    [
-                        (normal_B + 1.0) * 0.5,
-                        normal_B_mask.unsqueeze(1)
-                    ],
-                    dim=1
-                ), img_normal_B_path
-            )
-
-            rgb_norm_F = blend_rgb_norm(in_tensor["normal_F"], data)
-            rgb_norm_B = blend_rgb_norm(in_tensor["normal_B"], data)
-            rgb_T_norm_F = blend_rgb_norm(in_tensor["T_normal_F"], data)
-            rgb_T_norm_B = blend_rgb_norm(in_tensor["T_normal_B"], data)
-
-            img_overlap_path = osp.join(args.out_dir, f"vis/{data['name']}_overlap.png")
-            torchvision.utils.save_image(
-                torch.cat([data["img_raw"], rgb_norm_F, rgb_norm_B], dim=-1) / 255.,
-                img_overlap_path
-            )
-
-            smpl_overlap_path = osp.join(args.out_dir, f"vis/{data['name']}_smpl_overlap.png")
-            torchvision.utils.save_image(
-                (data["img_raw"] + rgb_T_norm_F) / 2. / 255.,
-                smpl_overlap_path
-            )
-
-            
 
         smpl_obj_lst = []
 
@@ -398,7 +222,6 @@ if __name__ == "__main__":
                 process=False,
                 maintains_order=True,
             )
-            smpl_obj_path = f"{args.out_dir}/obj/{data['name']}_smpl_{idx:02d}.obj"
 
             smpl_obj_path = f"{args.out_dir}/obj/{data['name']}_smpl_{idx:02d}.obj"
             if not args.multi:

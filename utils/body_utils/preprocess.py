@@ -80,7 +80,7 @@ if __name__ == "__main__":
     cfg.freeze()
 
     # load normal model
-    n#ormal_net = Normal.load_from_checkpoint(
+    # normal_net = Normal.load_from_checkpoint(
     #    cfg=cfg, checkpoint_path=cfg.normal_path, map_location=device, strict=False
     #)
     #normal_net = normal_net.to(device)

@@ -88,7 +88,7 @@ if True: #not osp.exists(f"{prefix}_tech_da.obj") or not osp.exists(f"{prefix}_s
     tech_obj_cp.vertices += smplx_param["transl"].cpu().numpy()
     tech_obj_cp.vertices *= smplx_param["scale"].cpu().numpy()
     tech_obj_cp.vertices *= np.array([1.0, -1.0, -1.0])
-    with open('smpl_vert_segmentation.json') as f:
+    with open('data/body_data/smplx_vert_segmentation.json') as f:
         smplx_vert_seg = json.load(f)
     seg_labels = list(smplx_vert_seg.keys())
     vert_seg_tensor = torch.zeros(len(smpl_verts), len(seg_labels)).float()

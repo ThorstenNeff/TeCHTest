@@ -79,6 +79,7 @@ if __name__ == '__main__':
 
 
     torch._dynamo.config.suppress_errors = True 
+    torch._dynamo.config.enable = False
 
     if cfg.test.test:
         guidance = None  # no need to load guidance model at test

@@ -70,11 +70,21 @@ class Mesh():
                 if getattr(self, name) is None:
                     setattr(self, name, getattr(base, name))
 
+    @classmethod
+    def printSegJson(j):
+        print("SEGMENTATION First two items in JSON:")
+        for i, (key, value) in enumerate(j.items()):
+            print(f"{key}: {value}")
+            if i == 1:  # Stop after two items
+                break
+        print(f"Total number of keys: {len(j)}")
+
     # load from obj file
     @classmethod
     def load_obj(cls, path, albedo_path=None, device=None, init_empty_tex=False, use_vertex_tex=False, albedo_res=2048, ref_path=None, keypoints_path=None, init_uv=True):
         mesh = cls()
-
+        cpath = os.getcwd()
+        print("LOAD OBJ: {path}, current path: {cupath}")
         # device
         if device is None:
             device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -206,12 +216,14 @@ class Mesh():
             import json
             with open('smpl_vert_segmentation.json') as f:
                 segmentation = json.load(f)
+                printSegJson(segmentation)
                 head_ind = segmentation['head']
             mesh.keypoints = mesh.v[head_ind].mean(dim=0)[None, None]
         elif mesh.ref_v is not None and len(mesh.ref_v) == 6890: # SMPL mesh init
             import json
             with open('smpl_vert_segmentation.json', 'r') as f:
                 segmentation = json.load(f)
+                printSegJson(segmentation)
                 head_ind = segmentation['head']
             mesh.keypoints = mesh.ref_v[head_ind].mean(dim=0)[None, None]
         else:

@@ -3,7 +3,6 @@ export SUBJECT_NAME=$(basename $1 | cut -d"." -f1);
 export CUSTOM_PROMPT=$2
 export GENDER=$3
 export EXP_DIR=$4
-export SUBJECT_NAME=$5
 # Step 2: Get BLIP prompt and gender, you can also use your own prompt
 p="$2|$3"
 echo  $p > "$4/prompt.txt"

@@ -2,6 +2,7 @@ set -x
 export INPUT_FILE=$1;
 export EXP_DIR=$2;
 export GENDER=$3;
+export CUSTOM_PROMPT=$4;
 export SUBJECT_NAME=$(basename $1 | cut -d"." -f1);
 export REPLICATE_API_TOKEN=$4;
 export CUDA_HOME=/usr/local/cuda-12.2/;

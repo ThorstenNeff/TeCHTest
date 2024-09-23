@@ -84,38 +84,56 @@ if True: #not osp.exists(f"{prefix}_tech_da.obj") or not osp.exists(f"{prefix}_s
     bc_weights, nearest_face = query_barycentric_weights(smpl_verts.new_tensor(tech_obj.vertices[None]), smpl_verts[None], smpl_verts.new_tensor(np.array(smpl_model.faces, dtype=np.int32)[None]))
 
     ## calculate occlusion map!
-    #tech_obj_cp = tech_obj.copy()
-    #tech_obj_cp.vertices += smplx_param["transl"].cpu().numpy()
-    #tech_obj_cp.vertices *= smplx_param["scale"].cpu().numpy()
-    #tech_obj_cp.vertices *= np.array([1.0, -1.0, -1.0])
-    #with open('data/body_data/smplx_vert_segmentation.json') as f:
-    #    smplx_vert_seg = json.load(f)
-    #seg_labels = list(smplx_vert_seg.keys())
-    #vert_seg_tensor = torch.zeros(len(smpl_verts), len(seg_labels)).float()
-    #for k in seg_labels:
-    #    vert_seg_tensor[smplx_vert_seg[k], seg_labels.index(k)] = 1
-    #tech_vert_seg_weighted = sum([vert_seg_tensor[smpl_model.faces[nearest_face[0]][:, i].astype(np.int32)] * bc_weights[0, :, i].reshape(-1, 1) for i in range(3)])
-    #seg_max_weight, tech_vert_seg = tech_vert_seg_weighted.max(dim=-1)
-    #tech_vert_seg[seg_max_weight < 0.5] = -1
+    tech_obj_cp = tech_obj.copy()
+    tech_obj_cp.vertices += smplx_param["transl"].cpu().numpy()
+    tech_obj_cp.vertices *= smplx_param["scale"].cpu().numpy()
+    tech_obj_cp.vertices *= np.array([1.0, -1.0, -1.0])
+    with open('data/body_data/smplx_vert_segmentation.json') as f:
+        smplx_vert_seg = json.load(f)
+    seg_labels = list(smplx_vert_seg.keys())
+    vert_seg_tensor = torch.zeros(len(smpl_verts), len(seg_labels)).float()
+    for k in seg_labels:
+        vert_seg_tensor[smplx_vert_seg[k], seg_labels.index(k)] = 1
+    tech_vert_seg_weighted = sum([vert_seg_tensor[smpl_model.faces[nearest_face[0]][:, i].astype(np.int32)] * bc_weights[0, :, i].reshape(-1, 1) for i in range(3)])
+    seg_max_weight, tech_vert_seg = tech_vert_seg_weighted.max(dim=-1)
+    tech_vert_seg[seg_max_weight < 0.5] = -1
     # ['rightHand', 'rightUpLeg', 'leftArm', 'head', 'leftEye', 'rightEye', 'leftLeg', 'leftToeBase', 'leftFoot', 'spine1', 'spine2', 'leftShoulder', 'rightShoulder', 'rightFoot', 'rightArm', 'leftHandIndex1', 'rightLeg', 'rightHandIndex1', 'leftForeArm', 'rightForeArm', 'neck', 'rightToeBase', 'spine', 'leftUpLeg', 'eyeballs', 'leftHand', 'hips']
     L_labels_remove = ['leftArm', 'leftForeArm', 'leftHandIndex1', 'leftShoulder']
     L_labels_occ = ['leftHand', 'leftArm', 'leftForeArm', 'leftHandIndex1']
     R_labels_remove = ['rightArm', 'rightForeArm', 'rightHandIndex1', 'rightShoulder']
     R_labels_occ = ['rightHand', 'rightArm', 'rightForeArm', 'rightHandIndex1']
-   
+    def get_occ_map(mesh, vert_label, labels_remove, labels_occ, resolution=1024):
+        vert_mask_remove = torch.zeros(len(vert_label)).bool()
+        vert_mask_occ = torch.zeros(len(vert_label)).bool()
+        for key in labels_remove:
+            vert_mask_remove |= (vert_label == seg_labels.index(key))
+        for key in labels_occ:
+            vert_mask_occ |= (vert_label == seg_labels.index(key))
+        mesh_remove = mesh.copy()
+        mesh_remove.update_vertices(~vert_mask_remove.cpu().numpy())
+        mesh_occ = mesh.copy()
+        mesh_occ.update_vertices(vert_mask_occ.cpu().numpy())
+        renderer = PyRender(resolution)
+        renderer.load_meshes(mesh_remove)
+        _, mask_remove = renderer.get_image('front')
+        renderer.load_meshes(mesh_occ)
+        _, mask_occ = renderer.get_image('front')
 
-    #left_occ_map = get_occ_map(tech_obj_cp, tech_vert_seg, L_labels_remove, L_labels_occ, 2048)
+        mask_occ = (mask_occ[0] > 0) & (mask_remove[0] > 0)
+        return mask_occ.reshape(resolution, resolution)
+
+    left_occ_map = get_occ_map(tech_obj_cp, tech_vert_seg, L_labels_remove, L_labels_occ, 2048)
     #Image.fromarray((left_occ_map * 255).astype(np.uint8)).save('left_occ.png')
-    #right_occ_map = get_occ_map(tech_obj_cp, tech_vert_seg, R_labels_remove, R_labels_occ, 2048)
+    right_occ_map = get_occ_map(tech_obj_cp, tech_vert_seg, R_labels_remove, R_labels_occ, 2048)
     #Image.fromarray((right_occ_map * 255).astype(np.uint8)).save('right_occ.png')
     renderer = PyRender(2048)
-    renderer.load_meshes(tech_obj)
+    renderer.load_meshes(tech_obj_cp)
     _, loss_mask = renderer.get_image('front')
     loss_mask = loss_mask[0].reshape(2048, 2048)
-    #occ_mask = (~left_occ_map) & (~right_occ_map)
-    #kernel = np.ones((20, 20), np.float32)
-    #erosion_mask = cv2.erode((occ_mask*255).astype(np.uint8), kernel, cv2.BORDER_REFLECT) == 255
-    #loss_mask = loss_mask & erosion_mask
+    occ_mask = (~left_occ_map) & (~right_occ_map)
+    kernel = np.ones((20, 20), np.float32)
+    erosion_mask = cv2.erode((occ_mask*255).astype(np.uint8), kernel, cv2.BORDER_REFLECT) == 255
+    loss_mask = loss_mask & erosion_mask
     Image.fromarray((loss_mask*255).astype(np.uint8)).save(f'{prefix}_occ_mask.png')
     
     bc_weights = torch.tensor(bc_weights).to(device)

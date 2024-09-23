@@ -3,6 +3,10 @@ export SUBJECT_NAME=$(basename $1 | cut -d"." -f1);
 export CUSTOM_PROMPT=$2
 export GENDER=$3
 export EXP_DIR=$4
+export CUDA_HOME=/usr/local/cuda-12.2/;
+export PYOPENGL_PLATFORM=osmesa
+export MESA_GL_VERSION_OVERRIDE=4.1
+export PYTHONPATH=$PYTHONPATH:$(pwd);
 # Step 2: Get BLIP prompt and gender, you can also use your own prompt
 p="$2|$3"
 echo  $p > "$4/prompt.txt"

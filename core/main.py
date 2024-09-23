@@ -77,9 +77,9 @@ if __name__ == '__main__':
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-
     torch._dynamo.config.suppress_errors = True 
-    torch._dynamo.config.enable = False
+    #torch._dynamo.config.enable = False
+    torch._dynamo.disable(recursive=True)
 
     if cfg.test.test:
         guidance = None  # no need to load guidance model at test

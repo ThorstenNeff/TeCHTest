@@ -1,15 +1,11 @@
 set -x
-export INPUT_FILE=$1;
-export EXP_DIR=$2;
-export SUBJECT_NAME=$(basename $1 | cut -d"." -f1);
-export REPLICATE_API_TOKEN=$4;
-export CUDA_HOME=/usr/local/cuda-12.2/;
-export PYOPENGL_PLATFORM=osmesa
-export MESA_GL_VERSION_OVERRIDE=4.1
-export PYTHONPATH=$PYTHONPATH:$(pwd);
+export CUSTOM_PROMPT=$1
+export GENDER=$2
+export EXP_DIR=$3
 
 # Step 2: Get BLIP prompt and gender, you can also use your own prompt
-python utils/get_prompt_blip.py --img-path ${EXP_DIR}/png/${SUBJECT_NAME}_crop.png --out-path ${EXP_DIR}/prompt.txt
+p="$1|$2"
+echo  $p > "$3/prompt.txt"
 # python core/get_prompt.py ${EXP_DIR}/png/${SUBJECT_NAME}_crop.png
-export PROMPT="`cat ${EXP_DIR}/prompt.txt| cut -d'|' -f1`"
-export GENDER="`cat ${EXP_DIR}/prompt.txt| cut -d'|' -f2`"
+export PROMPT=$1
+export GENDER=$2

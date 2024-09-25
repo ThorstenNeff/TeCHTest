@@ -55,6 +55,7 @@ if __name__ == "__main__":
     parser.add_argument("-patience", "--patience", type=int, default=5)
     parser.add_argument("-in_dir", "--in_dir", type=str, default=None)
     parser.add_argument("-in_path", "--in_path", type=str, default=None)
+    parser.add_argument("-in_path_back", "--in_path_back", type=str, default=None)
     parser.add_argument("-out_dir", "--out_dir", type=str, default="./results")
     parser.add_argument("-seg_dir", "--seg_dir", type=str, default=None)
     parser.add_argument("-cfg", "--config", type=str, default="./utils/body_utils/configs/body.yaml")
@@ -97,6 +98,7 @@ if __name__ == "__main__":
     dataset_param = {
         "image_dir": args.in_dir,
         "image_path": args.in_path,
+        "image_path_back": args.in_path_back,
         "seg_dir": args.seg_dir,
         "use_seg": False,    # w/ or w/o segmentation
         "hps_type": cfg.bni.hps_type,    # pymafx/pixie
@@ -140,7 +142,9 @@ if __name__ == "__main__":
         in_tensor = {
             "smpl_faces": data["smpl_faces"],
             "image": data["img_icon"].to(device),
-            "mask": data["img_mask"].to(device)
+            "mask": data["img_mask"].to(device),
+            "image_back": data["img_icon_back"].to(device),
+            "mask_back": data["img_mask_back"].to(device),
         }
 
         # The optimizer and variables
@@ -252,10 +256,11 @@ if __name__ == "__main__":
 
             # BUG: PyTorch3D silhouette renderer generates dilated mask
             bg_value = in_tensor["T_normal_F"][0, 0, 0, 0]
+            bg_value_back = in_tensor["T_normal_B"][0, 0, 0, 0]
             smpl_arr_fake = torch.cat(
                 [
                     in_tensor["T_normal_F"][:, 0].ne(bg_value).float(),
-                    in_tensor["T_normal_B"][:, 0].ne(bg_value).float()
+                    in_tensor["T_normal_B"][:, 0].ne(bg_value_back).float()
                 ],      
                 dim=-1
             )
@@ -299,7 +304,7 @@ if __name__ == "__main__":
             pbar_desc += f"Total: {smpl_loss:.3f}"
             loose_str = ''.join([str(j) for j in cloth_overlap_flag.int().tolist()])
             occlude_str = ''.join([str(j) for j in body_overlap_flag.int().tolist()])
-            pbar_desc += colored(f"| loose:{loose_str}, occluded:{occlude_str}", "yellow")
+            pbar_desc += colored(f"| loose:{loose_str}, occluded:{occlude_str}", "blue")
             loop_smpl.set_description(pbar_desc)
 
             # save intermediate results
@@ -315,7 +320,7 @@ if __name__ == "__main__":
                 )
                 per_loop_lst.extend(
                     [
-                        in_tensor["image"],
+                        in_tensor["image_back"],
                         in_tensor["T_normal_B"],
                         in_tensor["normal_B"],
                         diff_S[:, :, 512:].unsqueeze(1).repeat(1, 3, 1, 1),
@@ -338,13 +343,22 @@ if __name__ == "__main__":
             )
 
         if not args.novis:
+            # Save crop image for front image
             img_crop_path = osp.join(args.out_dir, "png", f"{data['name']}_crop.png")
             torchvision.utils.save_image(
                 data["img_crop"],
                 img_crop_path
             )
+            # Save crop image for back image
+            img_crop_path_back = osp.join(args.out_dir, "png", f"{data['name']}_crop_back.png")
+            torchvision.utils.save_image(
+                data["img_crop_back"],
+                img_crop_path_back
+            )
+
             img_normal_F_path = osp.join(args.out_dir, "normal", f"{data['name']}_normal_front.png")
             img_normal_B_path = osp.join(args.out_dir, "normal", f"{data['name']}_normal_back.png")
+            
             normal_F = in_tensor['normal_F'].detach().cpu()
             normal_F_mask = (normal_F.abs().sum(1) > 1e-6).to(normal_F)
             normal_B = in_tensor['normal_B'].detach().cpu()
@@ -367,6 +381,33 @@ if __name__ == "__main__":
                     ],
                     dim=1
                 ), img_normal_B_path
+            )
+
+            img_normal_F_path2 = osp.join(args.out_dir, "normal", f"{data['name']}_normal_front2.png")
+            img_normal_B_path2 = osp.join(args.out_dir, "normal", f"{data['name']}_normal_back2.png")
+            
+            normal_F2 = in_tensor['normal_F'].detach().cpu()
+            normal_F_mask2 = (normal_F.abs().sum(1) > 1e-6).to(normal_F)
+            normal_B2 = in_tensor['normal_B'].detach().cpu()
+            normal_B_mask2 = (normal_B.abs().sum(1) > 1e-6).to(normal_B)
+            torchvision.utils.save_image(
+                torch.cat(
+                    [
+                        (normal_F2 + 1.0) * 0.5,
+                        normal_F_mask2.unsqueeze(1)
+                    ],
+                    dim=1
+                ), img_normal_F_path2
+            )
+
+            torchvision.utils.save_image(
+                torch.cat(
+                    [
+                        (normal_B2 + 1.0) * 0.5,
+                        normal_B_mask2.unsqueeze(1)
+                    ],
+                    dim=1
+                ), img_normal_B_path2
             )
 
             rgb_norm_F = blend_rgb_norm(in_tensor["normal_F"], data)

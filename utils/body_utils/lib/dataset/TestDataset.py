@@ -53,6 +53,7 @@ class TestDataset:
 
         self.image_dir = cfg["image_dir"]
         self.image_path = cfg["image_path"]
+        self.image_path_back = cfg["image_path_back"]
         self.seg_dir = cfg["seg_dir"]
         self.use_seg = cfg["use_seg"]
         self.hps_type = cfg["hps_type"]
@@ -160,15 +161,40 @@ class TestDataset:
         img_path = self.subject_list[index]
         img_name = img_path.split("/")[-1].rsplit(".", 1)[0]
 
+        img_name_back = self.image_path_back.split("/")[-1].rsplit(".", 1)[0]
+
         arr_dict = process_image(img_path, self.hps_type, self.single, 1024, self.detector, modnet=self.modnet)
+        arr_dict_back = process_image(self.image_path_back, self.hps_type, self.single, 1024, self.detector, modnet=self.modnet)
         arr_dict.update({"name": img_name})
 
+        # Update arr_dict with data from back image
+        arr_dict.update({"name_back": img_name_back})
+        arr_dict.update({"img_icon_back": arr_dict_back["img_icon"]})
+        arr_dict.update({"img_crop_back": arr_dict_back["img_crop"]})
+        arr_dict.update({"img_hps_back": arr_dict_back["img_hps"]})
+        arr_dict.update({"img_raw_back": arr_dict_back["img_raw"]})
+        arr_dict.update({"img_mask_back": arr_dict_back["img_mask"]})
+        arr_dict.update({"uncrop_param_back": arr_dict_back["uncrop_param"]})
+        arr_dict.update({"landmark_back": arr_dict_back["landmark"]})
+        arr_dict.update({"hands_visibility_back": arr_dict_back["hands_visibility"]})
+
+        # OpenPose Keypoints for front image
         kp_path = img_path.replace('.png', '_00_keypoints.json')
         aff_path = img_path.replace('.png', '_00.npy')
         print(kp_path)
         if osp.exists(kp_path) and osp.exists(aff_path):
             arr_dict.update({"openpose_keypoints": self.read_openpose_keypoints(kp_path, aff_path)})
+        
+        # OpenPose Keypoints for back image
+        kp_path_back = self.image_path_back.replace('.png', '_00_keypoints_back.json')
+        aff_path_back = self.image_path_back.replace('.png', '_00_back.npy')
+        print(kp_path_back)
+        if osp.exists(kp_path_back) and osp.exists(aff_path_back):
+            arr_dict.update({"openpose_keypoints_back": self.read_openpose_keypoints(kp_path_back, aff_path_back)})
 
+
+        # Checking high level orientation
+        # WHile direction might not be necessary, we will need the shape
         with torch.no_grad():
             if self.hps_type == "pixie":
                 preds_dict = self.hps.forward(arr_dict["img_hps"].to(self.device))
@@ -192,6 +218,33 @@ class TestDataset:
         arr_dict["scale"] = scale.unsqueeze(1)
         arr_dict["trans"] = (
             torch.cat([tranX, tranY, torch.zeros_like(tranX)],
+                      dim=1).unsqueeze(1).to(self.device).float()
+        )
+
+        # Check high level orientation for back image
+        with torch.no_grad():
+            if self.hps_type == "pixie":
+                preds_dict_back = self.hps.forward(arr_dict["img_hps_back"].to(self.device))
+            else:
+                raise NotImplementedError
+        arr_dict["smpl_faces_back"] = (
+            torch.as_tensor(self.smpl_data.smplx_faces.astype(np.int64)).unsqueeze(0).long().to(
+                self.device
+            )
+        )
+        arr_dict["type_back"] = self.smpl_type
+
+        if self.hps_type == "pixie":
+            #arr_dict.update(preds_dict_back) dont overwrite the other keys
+            arr_dict["global_orient_back"] = preds_dict_back["global_pose"]
+            arr_dict["betas_back"] = preds_dict_back["shape"]    #200
+            arr_dict["smpl_verts_back"] = preds_dict_back["vertices"]
+            scale_back, tranX_back, tranY_back = preds_dict_back["cam"].split(1, dim=1)
+            # 1.1435, 0.0128, 0.3520
+
+        arr_dict["scale_back"] = scale_back.unsqueeze(1)
+        arr_dict["trans_back"] = (
+            torch.cat([tranX_back, tranY_back, torch.zeros_like(tranX)],
                       dim=1).unsqueeze(1).to(self.device).float()
         )
 

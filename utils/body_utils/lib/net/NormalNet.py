@@ -85,8 +85,11 @@ class NormalNet(BasePIFuNet):
 
         for name in self.in_nmlF:
             inF_list.append(in_tensor[name])
+            #print(f"FRONT in_mlF {name}")
         for name in self.in_nmlB:
-            inB_list.append(in_tensor[name])
+            #print(f"BACK in_mlF {name}")
+            #print(in_tensor)
+            inB_list.append(in_tensor["image_back"])
 
         nmlF = self.netF(torch.cat(inF_list, dim=1))
         nmlB = self.netB(torch.cat(inB_list, dim=1))
@@ -97,8 +100,9 @@ class NormalNet(BasePIFuNet):
 
         # output: float_arr [-1,1] with [B, C, H, W]
         mask = ((in_tensor["image"].abs().sum(dim=1, keepdim=True) != 0.0).detach().float())
+        mask_back = ((in_tensor["image_back"].abs().sum(dim=1, keepdim=True) != 0.0).detach().float())
 
-        return nmlF_normalized * mask, nmlB_normalized * mask
+        return nmlF_normalized * mask, nmlB_normalized * mask_back
 
     def get_norm_error(self, prd_F, prd_B, tgt):
         """calculate normal loss

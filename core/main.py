@@ -52,8 +52,8 @@ if __name__ == '__main__':
         cfg.data.can_pose_folder = os.path.join(opt.exp_dir, 'obj', "{}_apose.obj".format(opt.sub_name))
     if cfg.data.load_apose_mesh:
         cfg.data.can_pose_folder = os.path.join(opt.exp_dir, 'obj', "{}_apose.obj".format(opt.sub_name))
-    if cfg.data.load_occ_mask:
-        cfg.data.occ_mask = os.path.join(opt.exp_dir, 'obj', "{}_occ_mask.png".format(opt.sub_name))
+    #if cfg.data.load_occ_mask:
+    #    cfg.data.occ_mask = os.path.join(opt.exp_dir, 'obj', "{}_occ_mask.png".format(opt.sub_name))
     if cfg.data.load_da_pose_mesh:
         cfg.data.da_pose_mesh = os.path.join(opt.exp_dir, 'obj', "{}_da_pose.obj".format(opt.sub_name))
     if cfg.guidance.use_dreambooth:

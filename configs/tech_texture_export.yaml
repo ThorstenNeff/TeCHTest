@@ -10,7 +10,7 @@ model:
     use_can_pose_space: True
 train:
     lock_geo: True
-    iters: 7000
+    iters: 700
     normal_sample_ratio: 0.
     radius_range: [0.7, 1.3]
     height_range: [-0.4, 0.4]
